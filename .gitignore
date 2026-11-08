@@ -1,0 +1,17 @@
+# Clés Supabase locales (ne jamais pousser sur GitHub)
+env.json
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+.idea/
+
+# Windows
+windows/flutter/ephemeral/
+*.user
