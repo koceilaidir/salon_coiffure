@@ -91,16 +91,41 @@ class Service {
 
 enum StockStatus { ok, low, out }
 
+/// Unités de contenance : la base est en ml, g ou pièces.
+const contentUnits = <String, String>{'ml': 'ml', 'g': 'g', 'pièce': 'pièce(s)'};
+
+String _plural(String word, double n) {
+  if (n < 2 || word.isEmpty || word.endsWith('s') || word.endsWith('x') || word.endsWith('z')) return word;
+  if (word.endsWith('au') || word.endsWith('eu')) return '${word}x'; // rouleau -> rouleaux
+  return '${word}s';
+}
+
+/// 1000 ml -> "1 L", 250 ml -> "250 ml", 1500 g -> "1,5 kg", 100 pièce -> "100 pièces"
+String formatContent(double amount, String unit) {
+  if (unit == 'ml' && amount >= 1000) return '${formatQty(amount / 1000)} L';
+  if (unit == 'g' && amount >= 1000) return '${formatQty(amount / 1000)} kg';
+  if (unit == 'pièce') return '${formatQty(amount)} ${_plural('pièce', amount)}';
+  return '${formatQty(amount)} $unit';
+}
+
 class Product {
   final String id;
   final String name;
   final String category;
+
+  /// Conditionnement : flacon, tube, pot, boîte…
   final String unit;
+
+  /// Stock en conditionnements, avec décimales (2,35 flacons).
   final double quantity;
   final double minQuantity;
   final int costCents;
   final int? salePriceCents;
   final bool active;
+
+  /// Contenance d'un conditionnement, en [contentUnit] (ml, g ou pièce).
+  final double contentAmount;
+  final String contentUnit;
 
   const Product({
     required this.id,
@@ -112,25 +137,58 @@ class Product {
     required this.costCents,
     required this.salePriceCents,
     required this.active,
+    required this.contentAmount,
+    required this.contentUnit,
   });
 
   bool get forSale => salePriceCents != null;
 
+  /// true si le produit a une contenance (ex. flacon de 1 L) et pas juste "1 pièce".
+  bool get hasContent => !(contentUnit == 'pièce' && contentAmount == 1);
+
+  String get contentLabel => formatContent(contentAmount, contentUnit);
+
+  /// Ex. "Flacon de 1 L"
+  String get packagingLabel {
+    final u = unit.isEmpty ? 'Unité' : unit[0].toUpperCase() + unit.substring(1);
+    return hasContent ? '$u de $contentLabel' : u;
+  }
+
   StockStatus get status {
-    if (quantity <= 0) return StockStatus.out;
+    if (quantity <= 0.0005) return StockStatus.out;
     if (quantity < minQuantity) return StockStatus.low;
     return StockStatus.ok;
   }
 
-  /// Quantité suggérée pour revenir à deux fois le seuil.
+  /// Quantité suggérée pour revenir à deux fois le seuil (conditionnements entiers).
   double get suggestedOrder {
-    final target = minQuantity * 2;
-    final missing = target - quantity;
+    final missing = minQuantity * 2 - quantity;
     return missing > 0 ? missing.ceilToDouble() : 0;
   }
 
-  int get stockValueCents =>
-      quantity > 0 ? (quantity * costCents).round() : 0;
+  int get stockValueCents => quantity > 0 ? (quantity * costCents).round() : 0;
+
+  /// Conditionnements pleins + reste du conditionnement entamé.
+  ({int full, double rest}) get split {
+    final q = quantity < 0 ? 0.0 : quantity;
+    var full = q.floor();
+    var rest = (q - full) * contentAmount;
+    if (contentAmount - rest < 0.5) {
+      full += 1;
+      rest = 0.0;
+    }
+    return (full: full, rest: rest < 0.5 ? 0.0 : rest.roundToDouble());
+  }
+
+  /// Ex. "2 flacons + 350 ml", "4 tubes", "0 flacon"
+  String get stockLabel {
+    if (quantity < 0) return '${formatQty(quantity)} ${_plural(unit, 2)} (à recompter)';
+    if (!hasContent) return '${formatQty(quantity)} ${_plural(unit, quantity)}';
+    final s = split;
+    final base = '${s.full} ${_plural(unit, s.full.toDouble())}';
+    if (s.rest == 0) return base;
+    return '$base + ${formatContent(s.rest, contentUnit)}';
+  }
 
   factory Product.fromMap(Map<String, dynamic> m) => Product(
         id: m['id'] as String,
@@ -140,9 +198,10 @@ class Product {
         quantity: asDouble(m['quantity']),
         minQuantity: asDouble(m['min_quantity']),
         costCents: asInt(m['cost_cents']),
-        salePriceCents:
-            m['sale_price_cents'] == null ? null : asInt(m['sale_price_cents']),
+        salePriceCents: m['sale_price_cents'] == null ? null : asInt(m['sale_price_cents']),
         active: (m['active'] ?? true) as bool,
+        contentAmount: m['content_amount'] == null ? 1 : asDouble(m['content_amount']),
+        contentUnit: (m['content_unit'] ?? 'pièce') as String,
       );
 }
 
@@ -177,12 +236,16 @@ class Customer {
   final bool isLoyal;
   final int loyaltyPoints;
 
+  /// Ce que la cliente doit encore au salon.
+  final int creditCents;
+
   const Customer({
     required this.id,
     required this.fullName,
     required this.phone,
     required this.isLoyal,
     required this.loyaltyPoints,
+    required this.creditCents,
   });
 
   factory Customer.fromMap(Map<String, dynamic> m) => Customer(
@@ -191,6 +254,39 @@ class Customer {
         phone: (m['phone'] ?? '') as String,
         isLoyal: (m['is_loyal'] ?? false) as bool,
         loyaltyPoints: asInt(m['loyalty_points']),
+        creditCents: asInt(m['credit_cents']),
+      );
+}
+
+/// Ligne de l'historique du crédit d'une cliente.
+class CreditMovement {
+  final DateTime at;
+  final int deltaCents; // + elle doit plus, - elle a remboursé
+  final String kind; // sale_credit | sale_settlement | repayment
+  final String? paymentMethod;
+  final String note;
+
+  const CreditMovement({
+    required this.at,
+    required this.deltaCents,
+    required this.kind,
+    required this.paymentMethod,
+    required this.note,
+  });
+
+  String get kindLabel => switch (kind) {
+        'sale_credit' => 'Reste dû sur un ticket',
+        'sale_settlement' => 'Réglé avec un ticket',
+        'repayment' => 'Remboursement',
+        _ => kind,
+      };
+
+  factory CreditMovement.fromMap(Map<String, dynamic> m) => CreditMovement(
+        at: DateTime.parse(m['created_at'] as String).toLocal(),
+        deltaCents: asInt(m['delta_cents']),
+        kind: m['kind'] as String,
+        paymentMethod: m['payment_method'] as String?,
+        note: (m['note'] ?? '') as String,
       );
 }
 
@@ -284,26 +380,32 @@ class PayrollLine {
 }
 
 class MonthSummary {
-  final int revenueCents;
+  final int revenueCents; // chiffre d'affaires (valeur des tickets)
   final int tickets;
+  final int receivedCents; // argent réellement encaissé
   final int expensesCents;
   final int salariesCents;
   final int netCents;
+  final int creditOutstandingCents; // crédits clientes en cours
 
   const MonthSummary({
     required this.revenueCents,
     required this.tickets,
+    required this.receivedCents,
     required this.expensesCents,
     required this.salariesCents,
     required this.netCents,
+    required this.creditOutstandingCents,
   });
 
   factory MonthSummary.fromMap(Map<String, dynamic> m) => MonthSummary(
         revenueCents: asInt(m['revenue_cents']),
         tickets: asInt(m['tickets']),
+        receivedCents: asInt(m['received_cents']),
         expensesCents: asInt(m['expenses_cents']),
         salariesCents: asInt(m['salaries_cents']),
         netCents: asInt(m['net_cents']),
+        creditOutstandingCents: asInt(m['credit_outstanding_cents']),
       );
 }
 

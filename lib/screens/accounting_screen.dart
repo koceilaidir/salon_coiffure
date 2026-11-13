@@ -124,73 +124,116 @@ class _AccountingScreenState extends State<AccountingScreen> {
   @override
   Widget build(BuildContext context) {
     final s = _summary;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ScreenHeader(
-            title: 'Comptabilité & paie',
-            actions: [
-              MonthSwitcher(month: _month, onChanged: (m) {
-                setState(() => _month = m);
-                _load();
-              }),
-              OutlinedButton.icon(
-                onPressed: _ledger.isEmpty ? null : _exportCsv,
-                icon: const Icon(Icons.download_outlined),
-                label: const Text('Exporter le journal (Excel)'),
-              ),
-            ],
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= 1150;
+      final gap = gapFor(c.maxWidth);
+      final header = ScreenHeader(
+        title: 'Comptabilité & paie',
+        actions: [
+          MonthSwitcher(
+            month: _month,
+            onChanged: (m) {
+              setState(() => _month = m);
+              _load();
+            },
           ),
-          const SizedBox(height: 20),
-          if (s == null || _error != null)
-            Expanded(child: LoadState(error: _error, onRetry: _load))
-          else ...[
-            StatRow(children: [
-              StatCard(label: 'Recettes', value: formatDa(s.revenueCents), sub: '${s.tickets} tickets'),
-              StatCard(label: 'Dépenses', value: '- ${formatDa(s.expensesCents)}', sub: 'Loyer, factures, fournisseurs'),
-              StatCard(label: 'Salaires payés', value: '- ${formatDa(s.salariesCents)}'),
-              StatCard(
-                label: s.netCents >= 0 ? 'Dans le vert' : 'Dans le rouge',
-                value: formatDa(s.netCents),
-                sub: 'Résultat net du mois',
-                tone: s.netCents >= 0 ? Tone.green : Tone.red,
-              ),
-            ]),
-            const SizedBox(height: 20),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 400,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Expanded(child: _payrollPanel()),
-                      const SizedBox(height: 20),
-                      _cashPanel(),
-                    ]),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(child: _journalPanel()),
-                ],
-              ),
-            ),
-          ],
-          if (_loading && s != null) const LinearProgressIndicator(minHeight: 2),
+          OutlinedButton.icon(
+            onPressed: _ledger.isEmpty ? null : _exportCsv,
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Exporter le journal (Excel)'),
+          ),
         ],
-      ),
-    );
+      );
+      if (s == null || _error != null) {
+        return Padding(
+          padding: screenPadding(c.maxWidth),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            header,
+            Expanded(child: LoadState(error: _error, onRetry: _load)),
+          ]),
+        );
+      }
+      final stats = StatRow(children: [
+        StatCard(label: 'Chiffre d\'affaires', value: formatDa(s.revenueCents), sub: '${s.tickets} tickets'),
+        StatCard(
+          label: 'Encaissé',
+          value: formatDa(s.receivedCents),
+          sub: s.creditOutstandingCents > 0
+              ? 'Crédits clientes en cours : ${formatDa(s.creditOutstandingCents)}'
+              : 'Aucun crédit client en cours',
+          tone: s.creditOutstandingCents > 0 ? Tone.orange : Tone.neutral,
+        ),
+        StatCard(
+          label: 'Dépenses + salaires',
+          value: '- ${formatDa(s.expensesCents + s.salariesCents)}',
+          sub: 'Dépenses ${formatDa(s.expensesCents, suffix: false)} · salaires ${formatDa(s.salariesCents, suffix: false)}',
+        ),
+        StatCard(
+          label: s.netCents >= 0 ? 'Dans le vert' : 'Dans le rouge',
+          value: formatDa(s.netCents),
+          sub: 'Résultat net du mois',
+          tone: s.netCents >= 0 ? Tone.green : Tone.red,
+        ),
+      ]);
+      final progress = _loading ? const LinearProgressIndicator(minHeight: 2) : const SizedBox(height: 2);
+
+      if (wide) {
+        return Padding(
+          padding: screenPadding(c.maxWidth),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            header,
+            SizedBox(height: gap),
+            stats,
+            SizedBox(height: gap),
+            Expanded(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                SizedBox(
+                  width: 400,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Expanded(child: _payrollPanel(expand: true)),
+                    SizedBox(height: gap),
+                    _cashPanel(),
+                  ]),
+                ),
+                SizedBox(width: gap),
+                Expanded(child: _journalPanel(expand: true)),
+              ]),
+            ),
+            progress,
+          ]),
+        );
+      }
+      return SingleChildScrollView(
+        padding: screenPadding(c.maxWidth),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          header,
+          SizedBox(height: gap),
+          stats,
+          progress,
+          SizedBox(height: gap),
+          _payrollPanel(expand: false),
+          SizedBox(height: gap),
+          _cashPanel(),
+          SizedBox(height: gap),
+          SizedBox(height: 520, child: _journalPanel(expand: true)),
+        ]),
+      );
+    });
   }
 
-  Widget _payrollPanel() {
+  Widget _payrollPanel({required bool expand}) {
     return Panel(
-      expand: true,
+      expand: expand,
       title: 'Paie des employées',
       child: _payroll.isEmpty
-          ? const Center(
-              child: Text('Aucune employée. Ajoutez-les dans Réglages.', style: TextStyle(color: AppColors.muted)))
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                  child: Text('Aucune employée. Ajoutez-les dans Réglages.', style: TextStyle(color: AppColors.muted))),
+            )
           : ListView.separated(
+              shrinkWrap: !expand,
+              physics: expand ? null : const NeverScrollableScrollPhysics(),
               itemCount: _payroll.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
@@ -255,7 +298,7 @@ class _AccountingScreenState extends State<AccountingScreen> {
             ),
       child: Column(children: [
         KeyValueRow('Fond de caisse (dernier comptage)', formatDa(c.openingCents)),
-        KeyValueRow('+ Ventes en espèces', formatDa(c.salesCashCents)),
+        KeyValueRow('+ Espèces encaissées (ventes, remboursements)', formatDa(c.salesCashCents)),
         KeyValueRow('- Dépenses en espèces', formatDa(c.expensesCashCents)),
         KeyValueRow('- Salaires en espèces', formatDa(c.salariesCashCents)),
         const Divider(),
@@ -276,62 +319,72 @@ class _AccountingScreenState extends State<AccountingScreen> {
     );
   }
 
-  Widget _journalPanel() {
-    var running = 0;
-    final rows = <Widget>[];
-    for (final e in _ledger) {
-      running += e.inCents - e.outCents;
-      rows.add(Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-        child: Row(children: [
-          SizedBox(width: 90, child: Text(DateFormat('dd/MM HH:mm').format(e.at), style: const TextStyle(fontSize: 13))),
-          Expanded(child: Text(e.label, overflow: TextOverflow.ellipsis)),
-          SizedBox(width: 90, child: Text(_methodLabel(e.paymentMethod), style: const TextStyle(fontSize: 12, color: AppColors.muted))),
-          SizedBox(
-            width: 120,
-            child: Text(e.inCents == 0 ? '' : formatDa(e.inCents, suffix: false),
-                textAlign: TextAlign.right, style: const TextStyle(color: AppColors.green)),
-          ),
-          SizedBox(
-            width: 120,
-            child: Text(e.outCents == 0 ? '' : formatDa(e.outCents, suffix: false),
-                textAlign: TextAlign.right, style: const TextStyle(color: AppColors.red)),
-          ),
-          SizedBox(
-            width: 130,
-            child: Text(formatDa(running, suffix: false),
-                textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ),
-        ]),
-      ));
-    }
+  Widget _journalPanel({required bool expand}) {
     const head = TextStyle(fontSize: 12, color: AppColors.muted);
     return Panel(
-      expand: true,
+      expand: expand,
       title: 'Journal du mois',
-      child: Column(children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Row(children: [
-            SizedBox(width: 90, child: Text('Date', style: head)),
-            Expanded(child: Text('Libellé', style: head)),
-            SizedBox(width: 90, child: Text('Paiement', style: head)),
-            SizedBox(width: 120, child: Text('Entrée', style: head, textAlign: TextAlign.right)),
-            SizedBox(width: 120, child: Text('Sortie', style: head, textAlign: TextAlign.right)),
-            SizedBox(width: 130, child: Text('Cumul du mois', style: head, textAlign: TextAlign.right)),
-          ]),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: rows.isEmpty
-              ? const Center(child: Text('Aucune opération ce mois-ci.', style: TextStyle(color: AppColors.muted)))
-              : ListView.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (_, i) => rows[i],
-                ),
-        ),
-      ]),
+      child: LayoutBuilder(builder: (context, c) {
+        // Colonnes qui s'adaptent : on masque les moins utiles quand la place manque.
+        final showMethod = c.maxWidth >= 640;
+        final showRunning = c.maxWidth >= 520;
+        final money = c.maxWidth >= 720 ? 120.0 : 100.0;
+
+        Widget line({required Widget date, required Widget label, Widget? method, required Widget inW, required Widget outW, Widget? run}) {
+          return Row(children: [
+            SizedBox(width: 82, child: date),
+            Expanded(child: label),
+            if (showMethod) SizedBox(width: 92, child: method ?? const SizedBox()),
+            SizedBox(width: money, child: inW),
+            SizedBox(width: money, child: outW),
+            if (showRunning) SizedBox(width: money + 10, child: run ?? const SizedBox()),
+          ]);
+        }
+
+        var running = 0;
+        final rows = <Widget>[];
+        for (final e in _ledger) {
+          running += e.inCents - e.outCents;
+          rows.add(Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+            child: line(
+              date: Text(DateFormat('dd/MM HH:mm').format(e.at), style: const TextStyle(fontSize: 13)),
+              label: Text(e.label, overflow: TextOverflow.ellipsis, maxLines: 2),
+              method: Text(_methodLabel(e.paymentMethod), style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+              inW: Text(e.inCents == 0 ? '' : formatDa(e.inCents, suffix: false),
+                  textAlign: TextAlign.right, style: const TextStyle(color: AppColors.green)),
+              outW: Text(e.outCents == 0 ? '' : formatDa(e.outCents, suffix: false),
+                  textAlign: TextAlign.right, style: const TextStyle(color: AppColors.red)),
+              run: Text(formatDa(running, suffix: false),
+                  textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w500)),
+            ),
+          ));
+        }
+
+        return Column(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: line(
+              date: const Text('Date', style: head),
+              label: const Text('Libellé', style: head),
+              method: const Text('Paiement', style: head),
+              inW: const Text('Entrée', style: head, textAlign: TextAlign.right),
+              outW: const Text('Sortie', style: head, textAlign: TextAlign.right),
+              run: const Text('Cumul', style: head, textAlign: TextAlign.right),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: rows.isEmpty
+                ? const Center(child: Text('Aucune opération ce mois-ci.', style: TextStyle(color: AppColors.muted)))
+                : ListView.separated(
+                    itemCount: rows.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) => rows[i],
+                  ),
+          ),
+        ]);
+      }),
     );
   }
 }
@@ -393,11 +446,11 @@ class _PayDialogState extends State<_PayDialog> {
   Widget build(BuildContext context) {
     final l = widget.line;
     final bonus = _bonusCents ?? 0;
-    return AlertDialog(
-      title: Text('Payer ${l.fullName} — ${monthLabel(widget.month)}'),
-      content: SizedBox(
-        width: 420,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+    return AppDialog(
+      title: 'Payer ${l.fullName}',
+      subtitle: monthLabel(widget.month),
+      width: 480,
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
           KeyValueRow('Salaire fixe', formatDa(l.baseCents)),
           KeyValueRow('Commission (${formatQty(l.commissionPct)} %)', formatDa(l.commissionCents)),
           const SizedBox(height: 12),
@@ -415,10 +468,9 @@ class _PayDialogState extends State<_PayDialog> {
             ChoicePill(label: 'Retenue', dark: false, selected: _deduction, onTap: () => setState(() => _deduction = true)),
           ]),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            // ignore: deprecated_member_use
+          AppDropdown<String>(
             value: _method,
-            decoration: const InputDecoration(labelText: 'Payé en'),
+            label: 'Payé en',
             items: const [
               DropdownMenuItem(value: 'cash', child: Text('Espèces (sort de la caisse)')),
               DropdownMenuItem(value: 'transfer', child: Text('Virement')),
@@ -429,10 +481,9 @@ class _PayDialogState extends State<_PayDialog> {
           KeyValueRow('Total à verser', formatDa(l.dueCents + bonus),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.ink)),
         ]),
-      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('Payer et imprimer le reçu')),
+        const CancelButton(),
+        PrimaryButton(label: 'Payer et imprimer le reçu', busy: _busy, onPressed: _save),
       ],
     );
   }
@@ -480,11 +531,11 @@ class _CloseDayDialogState extends State<_CloseDayDialog> {
   Widget build(BuildContext context) {
     final counted = parseDa(_counted.text);
     final diff = counted == null ? null : counted - widget.cash.expectedCents;
-    return AlertDialog(
-      title: const Text('Clôturer la journée'),
-      content: SizedBox(
-        width: 400,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    return AppDialog(
+      title: 'Clôturer la journée',
+      subtitle: 'Comptez les espèces de la caisse.',
+      width: 440,
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           KeyValueRow('Attendu dans la caisse', formatDa(widget.cash.expectedCents),
               style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.ink)),
           const SizedBox(height: 12),
@@ -507,10 +558,9 @@ class _CloseDayDialogState extends State<_CloseDayDialog> {
           const Text('Le propriétaire verra la clôture et l\'écart éventuel.',
               style: TextStyle(fontSize: 12, color: AppColors.muted)),
         ]),
-      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('Clôturer')),
+        const CancelButton(),
+        PrimaryButton(label: 'Clôturer', busy: _busy, onPressed: _save),
       ],
     );
   }

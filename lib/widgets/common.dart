@@ -4,6 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme.dart';
 
+// =====================================================================
+// Messages
+// =====================================================================
+
 /// Message lisible à partir d'une erreur Supabase ou autre.
 String errorMessage(Object e) {
   if (e is PostgrestException) return e.message;
@@ -42,6 +46,21 @@ String dayLabel(DateTime d) {
   return s[0].toUpperCase() + s.substring(1);
 }
 
+// =====================================================================
+// Mise en page responsive
+// =====================================================================
+
+/// Marges d'un écran selon la largeur disponible.
+EdgeInsets screenPadding(double width) =>
+    width < 760 ? const EdgeInsets.fromLTRB(16, 16, 16, 16) : const EdgeInsets.fromLTRB(32, 28, 32, 28);
+
+/// Espace entre deux blocs selon la largeur.
+double gapFor(double width) => width < 760 ? 12 : 20;
+
+// =====================================================================
+// Blocs de base
+// =====================================================================
+
 /// En-tête d'écran : titre + sous-titre + actions à droite.
 class ScreenHeader extends StatelessWidget {
   final String title;
@@ -58,17 +77,17 @@ class ScreenHeader extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       alignment: WrapAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
+        Wrap(
+          spacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.end,
           children: [
             Text(title,
                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: AppColors.ink)),
-            if (subtitle != null) ...[
-              const SizedBox(width: 12),
-              Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 14)),
-            ],
+            if (subtitle != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 14)),
+              ),
           ],
         ),
         if (actions.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: actions),
@@ -112,16 +131,16 @@ class Panel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
               children: [
-                Row(children: [
-                  SectionTitle(title!),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: trailing ?? const SizedBox.shrink(),
-                    ),
-                  ),
-                ]),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    SectionTitle(title!),
+                    if (trailing != null) trailing!,
+                  ],
+                ),
                 const SizedBox(height: 12),
                 if (expand) Expanded(child: child) else child,
               ],
@@ -183,7 +202,7 @@ class StatCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: fg)),
+          Text(label, style: TextStyle(fontSize: 13, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -197,7 +216,7 @@ class StatCard extends StatelessWidget {
           ),
           if (sub != null) ...[
             const SizedBox(height: 2),
-            Text(sub!, style: TextStyle(fontSize: 12, color: fg)),
+            Text(sub!, style: TextStyle(fontSize: 12, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
           ],
         ],
       ),
@@ -205,7 +224,7 @@ class StatCard extends StatelessWidget {
   }
 }
 
-/// Rangée de cartes chiffres qui passe à la ligne si la fenêtre est étroite.
+/// Cartes chiffres : 4 par ligne sur grand écran, 2 en moyen, 1 en petit.
 class StatRow extends StatelessWidget {
   final List<Widget> children;
   const StatRow({super.key, required this.children});
@@ -213,7 +232,7 @@ class StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
-      final perRow = c.maxWidth > 900 ? children.length : 2;
+      final perRow = c.maxWidth >= 1000 ? children.length : (c.maxWidth >= 520 ? 2 : 1);
       final w = (c.maxWidth - 12 * (perRow - 1)) / perRow;
       return Wrap(
         spacing: 12,
@@ -279,13 +298,25 @@ class MonthSwitcher extends StatelessWidget {
 }
 
 /// Bouton-pastille sélectionnable (catégories, filtres, modes de paiement).
+/// Il prend la largeur de son texte ; placé dans un Expanded il remplit la place.
 class ChoicePill extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final bool dark;
 
-  const ChoicePill({super.key, required this.label, required this.selected, required this.onTap, this.dark = true});
+  /// true : pastille ronde, sélection en noir (catégories, filtres).
+  /// false : bouton rectangulaire, sélection bordée de prune (paiement, catégories de dépense).
+  final bool dark;
+  final IconData? icon;
+
+  const ChoicePill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.dark = true,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -297,7 +328,7 @@ class ChoicePill extends StatelessWidget {
       fg = Colors.white;
       border = AppColors.ink;
     } else if (selected) {
-      bg = Colors.white;
+      bg = AppColors.accentSoft;
       fg = AppColors.accent;
       border = AppColors.accent;
     } else {
@@ -305,21 +336,39 @@ class ChoicePill extends StatelessWidget {
       fg = AppColors.ink;
       border = AppColors.line;
     }
+    final radius = BorderRadius.circular(dark ? 999 : 10);
     return Material(
       color: bg,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(dark ? 999 : 10),
-        side: BorderSide(color: border, width: selected && !dark ? 2 : 1),
+        borderRadius: radius,
+        side: BorderSide(color: border, width: selected && !dark ? 1.6 : 1),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(dark ? 999 : 10),
+        borderRadius: radius,
         onTap: onTap,
-        child: Container(
+        child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 40),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: TextStyle(color: fg, fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: fg),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: fg, fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -338,8 +387,9 @@ class KeyValueRow extends StatelessWidget {
     final s = style ?? const TextStyle(color: AppColors.muted);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
         Expanded(child: Text(label, style: s)),
+        const SizedBox(width: 8),
         Text(value, style: s.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
       ]),
     );
@@ -367,14 +417,240 @@ class LoadState extends StatelessWidget {
   }
 }
 
+// =====================================================================
+// Boîtes de dialogue et menus au style du logiciel
+// =====================================================================
+
+/// Boîte de dialogue standard : fond blanc, coins arrondis, titre + croix,
+/// contenu qui défile si besoin, boutons alignés à droite.
+class AppDialog extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget content;
+  final List<Widget> actions;
+  final double width;
+
+  const AppDialog({
+    super.key,
+    required this.title,
+    required this.content,
+    required this.actions,
+    this.subtitle,
+    this.width = 480,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      insetPadding: const EdgeInsets.all(20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppColors.line),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(title,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.ink)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                      ],
+                    ]),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Fermer',
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: const Icon(Icons.close, color: AppColors.muted),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1, color: AppColors.lineSoft),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+                child: content,
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.lineSoft),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 10,
+                runSpacing: 10,
+                children: actions,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouton « Annuler » des boîtes de dialogue.
+class CancelButton extends StatelessWidget {
+  final String label;
+  const CancelButton({super.key, this.label = 'Annuler'});
+
+  @override
+  Widget build(BuildContext context) =>
+      OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(label));
+}
+
+/// Bouton principal avec indicateur de chargement.
+class PrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool busy;
+  final IconData? icon;
+  const PrimaryButton({super.key, required this.label, required this.onPressed, this.busy = false, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final child = busy
+        ? const SizedBox(
+            width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+        : Text(label);
+    if (icon != null && !busy) {
+      return FilledButton.icon(onPressed: onPressed, icon: Icon(icon), label: child);
+    }
+    return FilledButton(onPressed: busy ? null : onPressed, child: child);
+  }
+}
+
+/// Menu déroulant au style du logiciel (menu blanc arrondi).
+class AppDropdown<T> extends StatelessWidget {
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+  final String label;
+
+  const AppDropdown({
+    super.key,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<T>(
+      // `value` reste accepté par Flutter ; `initialValue` ne suit pas les changements d'état.
+      // ignore: deprecated_member_use
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      isExpanded: true,
+      dropdownColor: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      elevation: 4,
+      menuMaxHeight: 420,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.muted),
+      decoration: InputDecoration(labelText: label),
+    );
+  }
+}
+
+/// Choix d'une date (champ cliquable + calendrier).
+class DateField extends StatelessWidget {
+  final DateTime value;
+  final ValueChanged<DateTime> onChanged;
+  final String label;
+  const DateField({super.key, required this.value, required this.onChanged, this.label = 'Date'});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () async {
+        final d = await showDatePicker(
+          context: context,
+          initialDate: value,
+          firstDate: DateTime(2020),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          helpText: 'Choisir la date',
+          cancelText: 'Annuler',
+          confirmText: 'Valider',
+        );
+        if (d != null) onChanged(d);
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.event_outlined, color: AppColors.muted),
+        ),
+        child: Text(DateFormat('EEE d MMM yyyy', 'fr_FR').format(value)),
+      ),
+    );
+  }
+}
+
+/// Champ quantité avec boutons − / + (pratique au tactile).
+class QtyStepper extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+  final double step;
+  final String Function(double) format;
+
+  const QtyStepper({super.key, required this.value, required this.onChanged, required this.format, this.step = 1});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.line),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+          tooltip: 'Moins',
+          visualDensity: VisualDensity.compact,
+          onPressed: value - step < 0 ? null : () => onChanged(value - step),
+          icon: const Icon(Icons.remove, size: 18),
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(format(value), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        IconButton(
+          tooltip: 'Plus',
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onChanged(value + step),
+          icon: const Icon(Icons.add, size: 18),
+        ),
+      ]),
+    );
+  }
+}
+
 Future<bool> confirm(BuildContext context, String title, String message, {String ok = 'Confirmer'}) async {
   final res = await showDialog<bool>(
     context: context,
-    builder: (c) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
+    builder: (c) => AppDialog(
+      title: title,
+      width: 440,
+      content: Text(message, style: const TextStyle(fontSize: 15)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
+        OutlinedButton(onPressed: () => Navigator.pop(c, false), child: const Text('Annuler')),
         FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(ok)),
       ],
     ),

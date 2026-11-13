@@ -1,5 +1,6 @@
 -- Données de départ (exemples tirés des maquettes) — à adapter avec les vrais prix du salon.
 -- Montants en centimes : 150000 = 1 500,00 DA.
+-- À exécuter après les migrations 0001 et 0002.
 
 insert into public.services (name, category, duration_min, price_cents, sort_order) values
   ('Brushing',          'Coiffure', 45,  150000, 1),
@@ -12,12 +13,12 @@ insert into public.services (name, category, duration_min, price_cents, sort_ord
   ('Lissage kératine',  'Soins',   180, 1200000, 1),
   ('Soin profond',      'Soins',    30,  120000, 2);
 
-insert into public.products (name, category, unit, quantity, min_quantity, cost_cents, sale_price_cents) values
-  ('Coloration 6.0',           'Couleur',      'tube',    2, 6,  90000, null),
-  ('Oxydant 20 vol. 1 L',      'Couleur',      'flacon',  0, 4, 120000, null),
-  ('Shampoing kératine 1 L',   'Soins',        'flacon',  1, 3, 250000, null),
-  ('Masque réparateur',        'Soins',        'pot',     9, 4, 180000, null),
-  ('Laque fixation forte',     'Coiffage',     'bombe',  14, 5,  70000, null),
-  ('Gants nitrile (boîte)',    'Consommables', 'boîte',   1, 3,  85000, null),
-  ('Papier aluminium mèches',  'Consommables', 'rouleau', 7, 3,  60000, null),
-  ('Sérum brillance',          'Vente',        'flacon', 11, 4, 110000, 220000);
+insert into public.products (name, category, unit, content_amount, content_unit, quantity, min_quantity, cost_cents, sale_price_cents) values
+  ('Coloration 6.0',           'Couleur',      'tube',     60, 'ml',     2, 6,  90000, null),
+  ('Oxydant 20 vol. 1 L',      'Couleur',      'flacon', 1000, 'ml',     0, 4, 120000, null),
+  ('Shampoing kératine 1 L',   'Soins',        'flacon', 1000, 'ml',     1, 3, 250000, null),
+  ('Masque réparateur',        'Soins',        'pot',     500, 'ml',     9, 4, 180000, null),
+  ('Laque fixation forte',     'Coiffage',     'bombe',   300, 'ml',    14, 5,  70000, null),
+  ('Gants nitrile (boîte)',    'Consommables', 'boîte',   100, 'pièce',  1, 3,  85000, null),
+  ('Papier aluminium mèches',  'Consommables', 'rouleau',   1, 'pièce',  7, 3,  60000, null),
+  ('Sérum brillance',          'Vente',        'flacon',  100, 'ml',    11, 4, 110000, 220000);

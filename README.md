@@ -23,7 +23,8 @@ supabase/
 ## 1. Supabase (une seule fois)
 
 1. Créer un projet sur supabase.com.
-2. **SQL Editor** : coller et exécuter `supabase/migrations/0001_init.sql`, puis `supabase/seed.sql`
+2. **SQL Editor** : coller et exécuter, dans l'ordre, `supabase/migrations/0001_init.sql`,
+   `supabase/migrations/0002_credit_contenance.sql`, puis `supabase/seed.sql`
    (le seed contient les exemples des maquettes, à remplacer par les vrais prix).
 3. **Authentication > Sign In / Providers** : désactiver « Allow new users to sign up »
    (seuls le propriétaire et la gérante ont un compte).
@@ -58,12 +59,15 @@ Dans VS Code, la configuration « Salon (Windows) » de `.vscode/launch.json` pa
 
 `env.json` est dans `.gitignore` : il ne part pas sur GitHub. Ne jamais y mettre la clé `service_role`.
 
-## 3. Imprimante de tickets
+## 3. Matériels (Réglages > Matériels)
 
-1. Brancher l'imprimante thermique 58 mm en USB et installer son pilote Windows.
-2. Dans l'application : **Réglages > Imprimante**, la choisir puis « Imprimer un ticket de test ».
+- **Imprimante de tickets 58 mm** : brancher en USB, installer son pilote Windows, la choisir puis « Ticket de test ».
+- **Tiroir-caisse** : branché sur l'imprimante (prise RJ11). Activer « Tiroir-caisse branché » puis « Tester l'ouverture ».
+  Il peut s'ouvrir automatiquement à chaque paiement en espèces.
+- **Afficheur client** : le type se choisit dès maintenant, le branchement sera ajouté quand le modèle sera acheté.
+- **PC tactile** : « Mode tactile » agrandit les boutons et les champs.
 
-Le choix est mémorisé sur le PC du salon.
+Ces réglages sont mémorisés sur le PC du salon.
 
 ## 4. Version à installer au salon
 
@@ -82,6 +86,12 @@ Le programme est dans `build/windows/x64/runner/Release/` : copier **tout le dos
 - Stock : chaque prestation peut consommer des produits (Réglages > Prestations > Produits consommés).
   La quantité en stock ne peut changer que par une vente, une entrée de marchandise ou un inventaire (historique dans `stock_movements`).
 - Commission d'une employée = % × total de ses prestations du mois (avant remise fidélité).
+- Crédit client : si une cliente ne paie pas tout, le reste est noté sur sa fiche (avec l'historique).
+  À son prochain passage, son crédit s'ajoute au ticket (désactivable) ; elle peut aussi venir juste rembourser
+  (Réglages > Clientes > sa fiche). Un crédit n'est possible que pour une cliente enregistrée.
+- Chiffre d'affaires = valeur des tickets ; « Encaissé » = argent réellement reçu (tickets + remboursements).
+- Contenance : chaque produit a un conditionnement (flacon de 1 L, tube de 60 ml…). La consommation d'une prestation
+  se règle en ml / g / pièces. Le logiciel déduit automatiquement ; le « Constat » dans Stock recale sur le comptage réel.
 - Caisse du jour : attendu = dernier comptage + ventes en espèces − dépenses en espèces − salaires en espèces.
   Clôturer chaque soir pour que le fond de caisse du lendemain soit juste.
 
@@ -89,5 +99,6 @@ Le programme est dans `build/windows/x64/runner/Release/` : copier **tout le dos
 
 - Logo du salon (écran de connexion, menu, reçus) et couleur définitive.
 - Annulation d'un ticket (à décider : réservée au propriétaire ?).
+- Branchement de l'afficheur client (selon le modèle choisi).
 - Mode hors ligne (copie locale des ventes si internet coupe).
 - Site web du propriétaire (Flutter web) + fonction Supabase pour créer le compte de la gérante depuis le site.

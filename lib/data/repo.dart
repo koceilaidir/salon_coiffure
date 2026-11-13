@@ -151,14 +151,42 @@ class Repo {
     required String paymentMethod,
     int? paidCents,
     String? customerId,
+    bool settleDebt = true,
   }) async {
     final res = await db.rpc('create_sale', params: {
       'p_items': lines.map((l) => l.toRpc()).toList(),
       'p_payment_method': paymentMethod,
       'p_paid_cents': paidCents,
       'p_customer_id': customerId,
+      'p_settle_debt': settleDebt,
     });
     return Map<String, dynamic>.from(res as Map);
+  }
+
+  /// La cliente rembourse tout ou partie de son crédit (sans prestation).
+  Future<Customer> repayCredit({
+    required String customerId,
+    required int amountCents,
+    required String paymentMethod,
+    String note = '',
+  }) async {
+    final res = await db.rpc('repay_credit', params: {
+      'p_customer_id': customerId,
+      'p_amount_cents': amountCents,
+      'p_payment_method': paymentMethod,
+      'p_note': note,
+    });
+    return Customer.fromMap(Map<String, dynamic>.from(res as Map));
+  }
+
+  Future<List<CreditMovement>> creditHistory(String customerId) async {
+    final rows = await db
+        .from('customer_credit_movements')
+        .select()
+        .eq('customer_id', customerId)
+        .order('created_at', ascending: false)
+        .limit(100);
+    return rows.map(CreditMovement.fromMap).toList();
   }
 
   Future<int> salesCountOn(DateTime day) async {

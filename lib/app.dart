@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/models.dart';
 import 'data/repo.dart';
+import 'hardware/hardware.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell.dart';
 import 'theme.dart';
@@ -14,18 +15,21 @@ class SalonApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Gestion du salon',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(),
-      locale: const Locale('fr', 'FR'),
-      supportedLocales: const [Locale('fr', 'FR')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: const AuthGate(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: Hardware.touchMode,
+      builder: (context, touch, _) => MaterialApp(
+        title: 'Gestion du salon',
+        debugShowCheckedModeBanner: false,
+        theme: buildTheme(touch: touch),
+        locale: const Locale('fr', 'FR'),
+        supportedLocales: const [Locale('fr', 'FR')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: const AuthGate(),
+      ),
     );
   }
 }

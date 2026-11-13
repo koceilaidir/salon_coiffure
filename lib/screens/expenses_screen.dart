@@ -75,16 +75,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return res?.files.single.path;
   }
 
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (d != null) setState(() => _date = d);
-  }
-
   Future<void> _save() async {
     final cents = parseDa(_amount.text);
     if (cents == null || cents <= 0) {
@@ -136,36 +126,64 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ScreenHeader(
-            title: 'Dépenses & factures',
-            actions: [MonthSwitcher(month: _month, onChanged: (m) {
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= 1000;
+      final gap = gapFor(c.maxWidth);
+      final header = ScreenHeader(
+        title: 'Dépenses & factures',
+        actions: [
+          MonthSwitcher(
+            month: _month,
+            onChanged: (m) {
               setState(() => _month = m);
               _load();
-            })],
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(width: 380, child: SingleChildScrollView(child: _form())),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: _loading && _expenses.isEmpty || _error != null
-                      ? LoadState(error: _error, onRetry: _load)
-                      : _right(),
-                ),
-              ],
-            ),
+            },
           ),
         ],
-      ),
-    );
+      );
+      final loading = _loading && _expenses.isEmpty || _error != null;
+
+      if (wide) {
+        return Padding(
+          padding: screenPadding(c.maxWidth),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            header,
+            SizedBox(height: gap),
+            Expanded(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                SizedBox(width: 400, child: SingleChildScrollView(child: _form())),
+                SizedBox(width: gap),
+                Expanded(
+                  child: loading
+                      ? LoadState(error: _error, onRetry: _load)
+                      : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          _totals(),
+                          SizedBox(height: gap),
+                          Expanded(child: _list(expand: true)),
+                        ]),
+                ),
+              ]),
+            ),
+          ]),
+        );
+      }
+      return SingleChildScrollView(
+        padding: screenPadding(c.maxWidth),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          header,
+          SizedBox(height: gap),
+          _form(),
+          SizedBox(height: gap),
+          if (loading)
+            SizedBox(height: 200, child: LoadState(error: _error, onRetry: _load))
+          else ...[
+            _totals(),
+            SizedBox(height: gap),
+            _list(expand: false),
+          ],
+        ]),
+      );
+    });
   }
 
   Widget _form() {
@@ -176,13 +194,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         children: [
           const Text('Catégorie', style: TextStyle(fontSize: 12, color: AppColors.muted)),
           const SizedBox(height: 6),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2.6,
+          // Chaque bouton prend la largeur de son texte : pas de retour à la ligne.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               for (final e in expenseCategories.entries)
                 ChoicePill(
@@ -193,40 +208,31 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           TextField(
             controller: _amount,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             decoration: const InputDecoration(labelText: 'Montant (au centime)', suffixText: 'DA', hintText: '14 320,00'),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.event_outlined, size: 18),
-                label: Text(DateFormat('dd/MM/yyyy').format(_date)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                value: _method,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Payé en'),
-                items: [
-                  for (final e in expenseMethods.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
-                ],
-                onChanged: (v) => setState(() => _method = v ?? 'cash'),
-              ),
-            ),
-          ]),
+          DateField(value: _date, onChanged: (d) => setState(() => _date = d)),
+          const SizedBox(height: 12),
+          AppDropdown<String>(
+            value: _method,
+            label: 'Payé en',
+            items: [
+              for (final e in expenseMethods.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+            ],
+            onChanged: (v) => setState(() => _method = v ?? 'cash'),
+          ),
           const SizedBox(height: 12),
           TextField(controller: _note, decoration: const InputDecoration(labelText: 'Note (ex. Sonelgaz 3e trimestre)')),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(56), backgroundColor: AppColors.bg),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              backgroundColor: _filePath == null ? AppColors.bg : AppColors.greenBg,
+            ),
             onPressed: () async {
               final p = await _pickFile();
               if (p != null) setState(() => _filePath = p);
@@ -251,7 +257,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  Widget _right() {
+  Widget _totals() {
     final total = _expenses.fold<int>(0, (a, e) => a + e.amountCents);
     final byCat = <String, int>{};
     for (final e in _expenses) {
@@ -259,81 +265,90 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
     final cats = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final maxCat = cats.isEmpty ? 1 : cats.first.value;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Panel(
-          title: 'Total du mois',
-          trailing: Text(formatDa(total), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-          child: cats.isEmpty
-              ? const Text('Aucune dépense ce mois-ci.', style: TextStyle(color: AppColors.muted))
-              : Column(children: [
-                  for (final c in cats)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      child: Row(children: [
-                        SizedBox(width: 120, child: Text(expenseCategories[c.key] ?? c.key)),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: c.value / maxCat,
-                              minHeight: 12,
-                              backgroundColor: AppColors.lineSoft,
-                              color: AppColors.ink,
-                            ),
-                          ),
+    return Panel(
+      title: 'Total du mois',
+      trailing: Text(formatDa(total), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+      child: cats.isEmpty
+          ? const Text('Aucune dépense ce mois-ci.', style: TextStyle(color: AppColors.muted))
+          : Column(children: [
+              for (final c in cats)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(children: [
+                    SizedBox(width: 110, child: Text(expenseCategories[c.key] ?? c.key)),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: c.value / maxCat,
+                          minHeight: 12,
+                          backgroundColor: AppColors.lineSoft,
+                          color: AppColors.ink,
                         ),
-                        SizedBox(width: 130, child: Text(formatDa(c.value), textAlign: TextAlign.right)),
-                      ]),
+                      ),
                     ),
-                ]),
-        ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: Panel(
-            expand: true,
-            title: 'Saisies du mois',
-            child: _expenses.isEmpty
-                ? const Center(child: Text('Rien pour ce mois.', style: TextStyle(color: AppColors.muted)))
-                : ListView.separated(
-                    itemCount: _expenses.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final e = _expenses[i];
-                      final hasFile = e.receiptPath != null;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(children: [
-                          SizedBox(width: 56, child: Text(DateFormat('dd/MM').format(e.date))),
-                          SizedBox(width: 120, child: Text(e.categoryLabel)),
-                          Expanded(
-                            child: Text(
-                              '${e.note}${e.note.isEmpty ? '' : ' · '}${expenseMethods[e.paymentMethod] ?? ''}',
-                              style: const TextStyle(color: AppColors.muted),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: () => _openReceipt(e),
-                            icon: Icon(hasFile ? Icons.attach_file : Icons.warning_amber_rounded,
-                                size: 18, color: hasFile ? AppColors.green : AppColors.orange),
-                            label: Text(hasFile ? 'Voir la facture' : 'Facture manquante',
-                                style: TextStyle(color: hasFile ? AppColors.green : AppColors.orange)),
-                          ),
-                          SizedBox(
-                            width: 130,
-                            child: Text(formatDa(e.amountCents),
-                                textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          ),
-                        ]),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ],
+                    SizedBox(width: 120, child: Text(formatDa(c.value), textAlign: TextAlign.right)),
+                  ]),
+                ),
+            ]),
     );
+  }
+
+  Widget _list({required bool expand}) {
+    Widget row(Expense e) {
+      final hasFile = e.receiptPath != null;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(children: [
+          SizedBox(width: 52, child: Text(DateFormat('dd/MM').format(e.date))),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(e.categoryLabel, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(
+                '${e.note}${e.note.isEmpty ? '' : ' · '}${expenseMethods[e.paymentMethod] ?? ''}',
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          Tooltip(
+            message: hasFile ? 'Voir la facture' : 'Facture manquante : cliquer pour la joindre',
+            child: TextButton.icon(
+              onPressed: () => _openReceipt(e),
+              icon: Icon(hasFile ? Icons.attach_file : Icons.warning_amber_rounded,
+                  size: 18, color: hasFile ? AppColors.green : AppColors.orange),
+              label: Text(hasFile ? 'Facture' : 'Manquante',
+                  style: TextStyle(color: hasFile ? AppColors.green : AppColors.orange)),
+            ),
+          ),
+          SizedBox(
+            width: 120,
+            child: Text(formatDa(e.amountCents), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
+    }
+
+    final Widget body;
+    if (_expenses.isEmpty) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: Text('Rien pour ce mois.', style: TextStyle(color: AppColors.muted))),
+      );
+    } else if (expand) {
+      body = ListView.separated(
+        itemCount: _expenses.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (_, i) => row(_expenses[i]),
+      );
+    } else {
+      body = Column(children: [
+        for (var i = 0; i < _expenses.length; i++) ...[
+          if (i > 0) const Divider(height: 1),
+          row(_expenses[i]),
+        ],
+      ]);
+    }
+    return Panel(expand: expand, title: 'Saisies du mois', child: body);
   }
 }

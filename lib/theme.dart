@@ -26,11 +26,13 @@ class AppColors {
   static const badge = Color(0xFFC2410C);
 }
 
-ThemeData buildTheme() {
+/// [touch] : PC tactile, boutons et champs plus grands.
+ThemeData buildTheme({bool touch = false}) {
   final scheme = ColorScheme.fromSeed(
     seedColor: AppColors.accent,
     primary: AppColors.accent,
     surface: Colors.white,
+    surfaceTint: Colors.transparent,
   );
   final radius10 = BorderRadius.circular(10);
   return ThemeData(
@@ -38,11 +40,51 @@ ThemeData buildTheme() {
     colorScheme: scheme,
     fontFamily: 'Segoe UI',
     scaffoldBackgroundColor: AppColors.bg,
+    canvasColor: Colors.white,
     dividerColor: AppColors.lineSoft,
+    visualDensity: touch ? VisualDensity.standard : VisualDensity.compact,
+    materialTapTargetSize: touch ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap,
+    // Calendrier : mêmes couleurs que le logiciel (fond blanc, en-tête prune)
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 6,
+      headerBackgroundColor: AppColors.accent,
+      headerForegroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppColors.line),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppColors.line),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.line),
+      ),
+    ),
+    tabBarTheme: const TabBarThemeData(
+      labelColor: AppColors.accent,
+      unselectedLabelColor: AppColors.muted,
+      indicatorColor: AppColors.accent,
+      dividerColor: AppColors.line,
+      labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+      unselectedLabelStyle: TextStyle(fontSize: 15),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      isDense: true,
+      hoverColor: Colors.transparent,
+      isDense: !touch,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: radius10,
@@ -62,7 +104,7 @@ ThemeData buildTheme() {
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
-        minimumSize: const Size(44, 48),
+        minimumSize: Size(44, touch ? 52 : 48),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
@@ -71,12 +113,27 @@ ThemeData buildTheme() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.ink,
-        minimumSize: const Size(44, 44),
+        minimumSize: Size(44, touch ? 48 : 44),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         side: const BorderSide(color: AppColors.line),
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: radius10),
       ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.accent,
+        minimumSize: Size(44, touch ? 48 : 40),
+        shape: RoundedRectangleBorder(borderRadius: radius10),
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.muted),
+      trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.accent : AppColors.lineSoft),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.accent : AppColors.line),
     ),
     snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
   );

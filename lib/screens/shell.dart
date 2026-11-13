@@ -22,15 +22,16 @@ class Shell extends StatefulWidget {
 class _NavItem {
   final IconData icon;
   final String label;
-  const _NavItem(this.icon, this.label);
+  final String short;
+  const _NavItem(this.icon, this.label, this.short);
 }
 
 const _items = [
-  _NavItem(Icons.point_of_sale_outlined, 'Caisse'),
-  _NavItem(Icons.inventory_2_outlined, 'Stock'),
-  _NavItem(Icons.receipt_long_outlined, 'Dépenses & factures'),
-  _NavItem(Icons.bar_chart_outlined, 'Comptabilité & paie'),
-  _NavItem(Icons.settings_outlined, 'Réglages'),
+  _NavItem(Icons.point_of_sale_outlined, 'Caisse', 'Caisse'),
+  _NavItem(Icons.inventory_2_outlined, 'Stock', 'Stock'),
+  _NavItem(Icons.receipt_long_outlined, 'Dépenses & factures', 'Dépenses'),
+  _NavItem(Icons.bar_chart_outlined, 'Comptabilité & paie', 'Compta'),
+  _NavItem(Icons.settings_outlined, 'Réglages', 'Réglages'),
 ];
 
 class _ShellState extends State<Shell> {
@@ -86,22 +87,27 @@ class _ShellState extends State<Shell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Sidebar(
-            index: _index,
-            onSelect: _go,
-            lowStock: _lowStock,
-            salonName: _salonName,
-            profile: widget.profile,
-            printerName: _printerName,
-          ),
-          Expanded(
-            child: KeyedSubtree(key: ValueKey(_index), child: _screen()),
-          ),
-        ],
-      ),
+      body: LayoutBuilder(builder: (context, c) {
+        // Menu complet sur grand écran, réduit aux icônes sinon.
+        final compact = c.maxWidth < 1150;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Sidebar(
+              index: _index,
+              onSelect: _go,
+              lowStock: _lowStock,
+              salonName: _salonName,
+              profile: widget.profile,
+              printerName: _printerName,
+              compact: compact,
+            ),
+            Expanded(
+              child: KeyedSubtree(key: ValueKey(_index), child: _screen()),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
@@ -113,6 +119,7 @@ class _Sidebar extends StatelessWidget {
   final String salonName;
   final Profile profile;
   final String? printerName;
+  final bool compact;
 
   const _Sidebar({
     required this.index,
@@ -121,10 +128,12 @@ class _Sidebar extends StatelessWidget {
     required this.salonName,
     required this.profile,
     required this.printerName,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (compact) return _rail(context);
     return Container(
       width: 240,
       color: AppColors.sidebar,
@@ -202,6 +211,79 @@ class _Sidebar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _rail(BuildContext context) {
+    return Container(
+      width: 84,
+      color: AppColors.sidebar,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+      child: Column(children: [
+        Tooltip(
+          message: '$salonName\n${profile.roleLabel} · ${profile.fullName}',
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.sidebarMuted),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: const Text('LOGO', style: TextStyle(fontSize: 9, color: AppColors.sidebarMuted)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        for (var i = 0; i < _items.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Tooltip(
+              message: _items[i].label,
+              child: Material(
+                color: i == index ? AppColors.accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => onSelect(i),
+                  child: SizedBox(
+                    width: 64,
+                    height: 58,
+                    child: Stack(alignment: Alignment.center, children: [
+                      Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(_items[i].icon, size: 22, color: Colors.white),
+                        const SizedBox(height: 3),
+                        Text(_items[i].short,
+                            style: const TextStyle(fontSize: 10.5, color: AppColors.sidebarText)),
+                      ]),
+                      if (i == 1 && lowStock > 0)
+                        Positioned(
+                          top: 4,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(color: AppColors.badge, borderRadius: BorderRadius.circular(999)),
+                            child: Text('$lowStock', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                          ),
+                        ),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        const Spacer(),
+        Tooltip(
+          message: printerName ?? 'Imprimante non choisie',
+          child: Icon(Icons.print_outlined,
+              color: printerName == null ? AppColors.badge : const Color(0xFF34D399)),
+        ),
+        const SizedBox(height: 12),
+        IconButton(
+          tooltip: 'Se déconnecter',
+          onPressed: repo.signOut,
+          icon: const Icon(Icons.logout, color: AppColors.sidebarMuted),
+        ),
+      ]),
     );
   }
 }

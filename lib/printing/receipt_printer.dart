@@ -139,6 +139,10 @@ class ReceiptPrinter {
     final total = asInt(sale['total_cents']);
     final paid = asInt(sale['paid_cents']);
     final change = asInt(sale['change_cents']);
+    final debtBefore = asInt(sale['debt_before_cents']);
+    final settled = asInt(sale['debt_settled_cents']);
+    final credit = asInt(sale['credit_cents']);
+    final balanceAfter = debtBefore - settled + credit;
     final method = saleMethods[sale['payment_method']] ?? '${sale['payment_method']}';
     final createdAt = DateTime.tryParse('${sale['created_at']}') ?? DateTime.now();
     final ticketNo = '${sale['ticket_no']}'.padLeft(4, '0');
@@ -155,9 +159,17 @@ class ReceiptPrinter {
           _sep(),
           _row('Sous-total', formatDa(subtotal, suffix: false)),
           if (discount > 0) _row('Remise fidélité', '-${formatDa(discount, suffix: false)}'),
-          _row('TOTAL', formatDa(total), bold: true, size: 10),
+          _row(settled > 0 ? 'Total du ticket' : 'TOTAL', formatDa(total),
+              bold: settled == 0, size: settled > 0 ? 8 : 10),
+          if (settled > 0) ...[
+            _row('Ancien crédit', formatDa(settled, suffix: false)),
+            _row('A PAYER', formatDa(total + settled), bold: true, size: 10),
+          ],
           _row('Payé : $method', formatDa(paid, suffix: false)),
           if (change > 0) _row('Rendu', formatDa(change, suffix: false)),
+          if (credit > 0) _row('Reste dû', formatDa(credit), bold: true),
+          if (customer != null && balanceAfter > 0)
+            _t('Crédit total de la cliente : ${formatDa(balanceAfter)}', bold: true),
           _sep(),
           if (customer != null) _t('Points fidélité : ${customer.loyaltyPoints}', align: pw.TextAlign.center),
           _t(settings.receiptFooter, bold: true, align: pw.TextAlign.center),
@@ -198,15 +210,20 @@ class ReceiptPrinter {
   }
 
   /// Bon de commande (produits manquants).
-  static Future<void> printOrder({required SalonSettings settings, required List<Product> products}) async {
+  /// [order] : produit et quantité à commander (en conditionnements).
+  static Future<void> printOrder({
+    required SalonSettings settings,
+    required List<(Product, double)> order,
+  }) async {
     final doc = _doc(() => [
           ..._header(settings),
           _t('BON DE COMMANDE', bold: true, size: 9, align: pw.TextAlign.center),
           _t(_date(DateTime.now()), align: pw.TextAlign.center),
           _sep(),
-          for (final p in products) ...[
-            _row(p.name, '${formatQty(p.suggestedOrder)} ${p.unit}'),
-            _t('  en stock : ${formatQty(p.quantity)} / seuil ${formatQty(p.minQuantity)}', size: 7),
+          for (final (p, qty) in order) ...[
+            _row(p.name, '${formatQty(qty)} ${p.unit}'),
+            if (p.hasContent) _t('  ${p.packagingLabel}', size: 7),
+            _t('  en stock : ${p.stockLabel}', size: 7),
           ],
           _sep(),
         ]);
